@@ -1,3 +1,6 @@
+com/weather/ParquetArchiver.class
+com/weather/CentralStation.class
+com/weather/WeatherProducer.class
 com/weather/WeatherMessage.class
 com/weather/RainDetectionProcessor.class
 com/weather/Weather.class
