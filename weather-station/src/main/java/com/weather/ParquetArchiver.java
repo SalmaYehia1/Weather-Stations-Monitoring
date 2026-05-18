@@ -20,7 +20,7 @@ import java.util.List;
 
 public class ParquetArchiver {
 
-    private static final int BATCH_SIZE = 10_000;
+    private static final int BATCH_SIZE = 10;
     private static final String BASE_DIR = "data/parquet";
     private static final ObjectMapper mapper = new ObjectMapper();
 
@@ -40,7 +40,7 @@ public class ParquetArchiver {
     }
 
     // called for every message consumed from Kafka
-    public void add(String jsonMessage) throws Exception {
+    public synchronized void add(String jsonMessage) throws Exception {
         JsonNode node = mapper.readTree(jsonMessage);
 
         GenericRecord record = new GenericData.Record(schema);
@@ -61,7 +61,7 @@ public class ParquetArchiver {
     }
 
     // write buffered records to a parquet file
-    public void flush() throws Exception {
+    public synchronized void flush() throws Exception {
         if (buffer.isEmpty()) return;
 
         // use timestamp of first record for partitioning
