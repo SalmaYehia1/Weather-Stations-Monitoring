@@ -11,10 +11,5 @@ class Weather {
         this.wind_speed = wind_speed;
     }
 
-    public String toJson() {
-        return String.format(
-                "{\"humidity\":%d,\"temperature\":%d,\"wind_speed\":%d}",
-                humidity, temperature, wind_speed
-        );
-    }
+
 }
