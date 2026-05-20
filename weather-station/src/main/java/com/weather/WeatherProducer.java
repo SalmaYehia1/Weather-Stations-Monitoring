@@ -3,7 +3,6 @@ package com.weather;
 import com.google.gson.Gson;
 import org.apache.kafka.clients.producer.*;
 import org.apache.kafka.common.serialization.StringSerializer;
-
 import java.util.Properties;
 
 public class WeatherProducer {
@@ -11,54 +10,43 @@ public class WeatherProducer {
     public static void main(String[] args) throws Exception {
 
         long stationId = Long.parseLong(args[0]);
-
         WeatherStation station = new WeatherStation(stationId);
-
         Gson gson = new Gson();
 
         Properties properties = new Properties();
-
         properties.setProperty(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
                 "localhost:9092"
         );
-
         properties.setProperty(
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
                 StringSerializer.class.getName()
         );
-
         properties.setProperty(
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
                 StringSerializer.class.getName()
         );
 
-        KafkaProducer<String, String> producer =
-                new KafkaProducer<>(properties);
+        KafkaProducer<String, String> producer = new KafkaProducer<>(properties);
 
         while (true) {
+            // generate ALWAYS so s_no increments regardless of drop
+            WeatherMessage msg = station.generateMessage();
 
             if (station.shouldDropMessage()) {
-
+                // message discarded but s_no was already consumed
                 System.out.println(
-                        "Station " + stationId + " -> Message Dropped"
+                        "Station " + stationId + " -> Message Dropped (s_no=" + msg.s_no + ")"
                 );
-
             } else {
-
-                WeatherMessage msg = station.generateMessage();
-
                 String json = gson.toJson(msg);
-
                 ProducerRecord<String, String> record =
                         new ProducerRecord<>(
                                 "weather-topic",
                                 String.valueOf(msg.station_id),
                                 json
                         );
-
                 producer.send(record);
-
                 System.out.println(
                         "Station " + stationId + " Sent: " + json
                 );

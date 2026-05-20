@@ -23,6 +23,9 @@ public class WeatherStation {
                 random.nextInt(51)           // wind speed
         );
 
+        // increment ALWAYS, regardless of drop
+        long currentSerialNo = serialNo++;
+
         WeatherMessage message = new WeatherMessage(
                 stationId,
                 serialNo++,

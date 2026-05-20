@@ -16,26 +16,26 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ParquetArchiver {
 
-    private static final int BATCH_SIZE = 10;
+    private static final int BATCH_SIZE = 5;
     private static final String BASE_DIR = "data/parquet";
     private static final ObjectMapper mapper = new ObjectMapper();
 
     private final Schema schema;
-    // buffer holding messages until batch is full
-    private final List<GenericRecord> buffer = new ArrayList<>();
+
+    // Bug fix 1: one buffer per station_id instead of one shared buffer
+    private final Map<Long, List<GenericRecord>> buffers = new HashMap<>();
 
     public ParquetArchiver() throws Exception {
-        // load avro schema from resources
         InputStream schemaStream = getClass()
                 .getClassLoader()
                 .getResourceAsStream("weather_message.avsc");
         this.schema = new Schema.Parser().parse(schemaStream);
-        //  loads the Avro schema from resources,
-        //  and creates the data/parquet/ directory on disk if it doesn't exist yet.
         new java.io.File(BASE_DIR).mkdirs();
     }
 
@@ -43,8 +43,10 @@ public class ParquetArchiver {
     public synchronized void add(String jsonMessage) throws Exception {
         JsonNode node = mapper.readTree(jsonMessage);
 
+        long stationId = node.path("station_id").asLong();
+
         GenericRecord record = new GenericData.Record(schema);
-        record.put("station_id",       node.path("station_id").asLong());
+        record.put("station_id",       stationId);
         record.put("s_no",             node.path("s_no").asLong());
         record.put("battery_status",   node.path("battery_status").asText());
         record.put("status_timestamp", node.path("status_timestamp").asLong());
@@ -52,43 +54,71 @@ public class ParquetArchiver {
         record.put("temperature",      node.path("weather").path("temperature").asInt());
         record.put("wind_speed",       node.path("weather").path("wind_speed").asInt());
 
-        buffer.add(record);
+        // get or create buffer for this specific station
+        buffers.computeIfAbsent(stationId, k -> new ArrayList<>()).add(record);
 
-        // flush when batch is full
-        if (buffer.size() >= BATCH_SIZE) {
-            flush();
+        // flush only this station's buffer if it reached batch size
+        if (buffers.get(stationId).size() >= BATCH_SIZE) {
+            flushStation(stationId);
         }
     }
 
-    // write buffered records to a parquet file
-    public synchronized void flush() throws Exception {
-        if (buffer.isEmpty()) return;
+    // flush a specific station's buffer
+    private void flushStation(long stationId) throws Exception {
+        List<GenericRecord> buffer = buffers.get(stationId);
+        if (buffer == null || buffer.isEmpty()) return;
 
-        // use timestamp of first record for partitioning
-        long timestamp = (long) buffer.get(0).get("status_timestamp");
-        long stationId = (long) buffer.get(0).get("station_id");
+        // Bug fix 2: group records by their own day before writing
+        // so midnight-crossing batches go into correct partitions
+        Map<String, List<GenericRecord>> byDay = new HashMap<>();
 
-        String filePath = buildFilePath(timestamp, stationId);
-        new java.io.File(filePath).getParentFile().mkdirs();
+        for (GenericRecord record : buffer) {
+            long timestamp = (long) record.get("status_timestamp");
+            ZonedDateTime dt = Instant.ofEpochSecond(timestamp)
+                    .atZone(ZoneOffset.UTC);
 
-        Path path = new Path(filePath);
-        Configuration conf = new Configuration();
+            String dayKey = String.format("%d/%02d/%02d",
+                    dt.getYear(), dt.getMonthValue(), dt.getDayOfMonth());
 
-        try (ParquetWriter<GenericRecord> writer = AvroParquetWriter
-                .<GenericRecord>builder(path)
-                .withSchema(schema)
-                .withConf(conf)
-                .withCompressionCodec(CompressionCodecName.SNAPPY)
-                .build()) {
-
-            for (GenericRecord record : buffer) {
-                writer.write(record);
-            }
+            byDay.computeIfAbsent(dayKey, k -> new ArrayList<>()).add(record);
         }
 
-        System.out.println("Wrote " + buffer.size() +
-                " records to: " + filePath);
+        // write one parquet file per day group
+        for (Map.Entry<String, List<GenericRecord>> entry : byDay.entrySet()) {
+            List<GenericRecord> dayRecords = entry.getValue();
+
+            // each record uses its OWN timestamp for the path
+            long timestamp = (long) dayRecords.get(0).get("status_timestamp");
+            String filePath = buildFilePath(timestamp, stationId);
+            new java.io.File(filePath).getParentFile().mkdirs();
+
+            Path path = new Path(filePath);
+            Configuration conf = new Configuration();
+
+            try (ParquetWriter<GenericRecord> writer = AvroParquetWriter
+                    .<GenericRecord>builder(path)
+                    .withSchema(schema)
+                    .withConf(conf)
+                    .withCompressionCodec(CompressionCodecName.SNAPPY)
+                    .build()) {
+
+                for (GenericRecord record : dayRecords) {
+                    writer.write(record);
+                }
+            }
+
+            System.out.println("Wrote " + dayRecords.size() +
+                    " records to: " + filePath);
+        }
+
         buffer.clear();
+    }
+
+    // flush ALL stations' buffers (called on shutdown)
+    public synchronized void flush() throws Exception {
+        for (long stationId : buffers.keySet()) {
+            flushStation(stationId);
+        }
     }
 
     // partition path: data/parquet/year=.../month=.../day=.../station_id=.../
@@ -105,7 +135,6 @@ public class ParquetArchiver {
                 stationId
         );
 
-        // unique filename per batch using current time
         String filename = "batch_" + System.currentTimeMillis() + ".parquet";
         return partition + "/" + filename;
     }
