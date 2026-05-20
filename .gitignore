@@ -1,0 +1,27 @@
+cat << 'EOF' > .gitignore
+# Java & Maven Build Output
+target/
+*.class
+*.jar
+*.war
+*.ear
+dependency-reduced-pom.xml
+
+# Local Database Storage State
+central-station/data/
+data/
+*.bin
+
+# IDEs & Text Editor Configs
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+*.code-workspace
+.DS_Store
+
+# Logs
+*.log
+EOF
