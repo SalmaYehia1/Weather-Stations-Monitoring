@@ -30,14 +30,11 @@ public class WeatherProducer {
         KafkaProducer<String, String> producer = new KafkaProducer<>(properties);
 
         while (true) {
-            // generate ALWAYS so s_no increments regardless of drop
-            WeatherMessage msg = station.generateMessage();
+            WeatherMessage msg = station.generateMessage(); // called ONCE, always
 
             if (station.shouldDropMessage()) {
-                // message discarded but s_no was already consumed
-                System.out.println(
-                        "Station " + stationId + " -> Message Dropped (s_no=" + msg.s_no + ")"
-                );
+                System.out.println("Station " + stationId +
+                        " -> Message Dropped (s_no=" + msg.s_no + ")");
             } else {
                 String json = gson.toJson(msg);
                 ProducerRecord<String, String> record =
@@ -47,9 +44,7 @@ public class WeatherProducer {
                                 json
                         );
                 producer.send(record);
-                System.out.println(
-                        "Station " + stationId + " Sent: " + json
-                );
+                System.out.println("Station " + stationId + " Sent: " + json);
             }
 
             Thread.sleep(1000);

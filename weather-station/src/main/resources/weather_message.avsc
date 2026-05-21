@@ -1,7 +1,7 @@
 {
   "type": "record",
-  "name": "WeatherMessage",
-  "namespace": "com.weather",
+  "name": "WeatherRecord",
+  "namespace": "com.weather.parquet",
   "fields": [
     {"name": "station_id",        "type": "long"},
     {"name": "s_no",              "type": "long"},
