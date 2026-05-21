@@ -19,6 +19,7 @@ public class CentralStation {
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,   StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,        "earliest");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
 
         KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
         consumer.subscribe(List.of("weather-topic"));
@@ -31,12 +32,12 @@ public class CentralStation {
                 running.set(false);
                 Thread.sleep(1500);
                 archiver.flush();
+                archiver.close();  // ← add this
                 consumer.close();
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }));
-
         System.out.println("Central Station running, consuming from weather-topic...");
 
         while (running.get()) {
