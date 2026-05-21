@@ -52,7 +52,7 @@ public class WeatherProducer {
 
                 ProducerRecord<String, String> record =
                         new ProducerRecord<>(
-                                "weather-topic",
+                                "weather-data",
                                 String.valueOf(msg.station_id),
                                 json
                         );
