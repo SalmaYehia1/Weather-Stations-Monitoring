@@ -37,7 +37,7 @@ public class WeatherProducer {
             } else {
                 String json = gson.toJson(msg);
                 ProducerRecord<String, String> record = new ProducerRecord<>(
-                        "weather-topic",
+                        "weather-data",
                         String.valueOf(msg.station_id),
                         json
                 );
