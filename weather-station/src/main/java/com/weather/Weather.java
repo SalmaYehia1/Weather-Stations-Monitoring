@@ -17,4 +17,5 @@ class Weather {
                 humidity, temperature, wind_speed
         );
     }
+
 }

@@ -20,10 +20,12 @@ public class WeatherMessage {
         this.status_timestamp = status_timestamp;
         this.weather = weather;
     }
+    
     public String toJson() {
         return String.format(
                 "{\"station_id\":%d,\"s_no\":%d,\"battery_status\":\"%s\",\"status_timestamp\":%d,\"weather\":%s}",
                 station_id, s_no, battery_status, status_timestamp, weather.toJson()
         );
     }
+
 }

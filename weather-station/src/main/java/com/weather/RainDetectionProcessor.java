@@ -6,11 +6,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.*;
+
+import org.apache.kafka.streams.kstream.*;
+
 import java.util.Properties;
 
 public class RainDetectionProcessor {
 
-    static final String INPUT_TOPIC  = "weather-data";
+
+
+    static final String INPUT_TOPIC  = "weather-topic";
     static final String OUTPUT_TOPIC = "rain-alerts";
 
     // one shared Jackson JSON parser
