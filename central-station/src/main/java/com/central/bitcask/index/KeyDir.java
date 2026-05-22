@@ -37,4 +37,9 @@ public class KeyDir {
     }
     System.out.println("======================================================\n");
 }
+
+public java.util.Set<String> keySet() {
+    // Replace 'this.map' with whatever your class's internal map field name is
+    return this.map.keySet();
+}
 }

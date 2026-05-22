@@ -99,4 +99,7 @@ public class BitCaskEngine {
     public void printIndexState() {
         this.keyDir.printDiagnosticSnapshot();
     }
+    public KeyDir getKeyDir() {
+        return this.keyDir;
+    }
 }
