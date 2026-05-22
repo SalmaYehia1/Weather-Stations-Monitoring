@@ -30,7 +30,10 @@ public class RecoveryManager {
             !name.startsWith("hint_")
         );
         
-        if (files == null) return;
+        if (files == null || files.length == 0) {
+            System.out.println("[RECOVERY] No data files found - fresh start");
+            return;
+        }
 
         for (File file : files) {
             String fileId = file.getName().replace(StorageConstants.BIN_FILE_EXTENSION, "");
@@ -39,14 +42,16 @@ public class RecoveryManager {
 
             if (hintFile.exists()) {
                 // FAST PATH: Rebuild using the dedicated hint index file
-                System.out.println("[RECOVERY] Optimized Index Boot using: " + matchingHintName);
+                System.out.println("[RECOVERY] Fast-track index rebuild: " + matchingHintName);
                 buildIndexFromHint(hintFile, fileId, keyDir);
             } else {
                 // SLOW FALLBACK PATH: Run sequential log tracking scan
-                System.out.println("[RECOVERY] Fast index missing. Scanning data log file: " + file.getName());
+                System.out.println("[RECOVERY] No hint file found. Scanning data log: " + file.getName());
                 buildIndexFromDataLog(fileId, keyDir);
             }
         }
+        
+        System.out.println("[RECOVERY] Index rebuild complete");
     }
 
     private void buildIndexFromHint(File hintFile, String fileId, KeyDir keyDir) throws IOException {

@@ -7,6 +7,7 @@ import com.central.bitcask.index.KeyDir;
 import com.central.bitcask.index.KeyDirEntry;
 import com.central.bitcask.serde.RecordEncoder;
 import com.central.bitcask.serde.HintEncoder;
+import com.central.bitcask.serde.RecordDecoder;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -22,110 +23,116 @@ public class BitcaskCompactor {
         this.fileManager = fileManager;
     }
 
-    public synchronized void runCompaction(KeyDir activeKeyDir) throws IOException {
+    /**
+     * MAIN COMPACTION FLOW:
+     * 1. Take the current active file being written to
+     * 2. Generate a hint file from it (index it)
+     * 3. Create a new empty active file
+     * 4. Return new active file ID for BitCaskEngine to use
+     * 
+     * This allows BitCask to continue writing to the new file while
+     * the old file has a hint index created for fast recovery.
+     */
+    public synchronized String runCompaction(String currentActiveFileId, KeyDir activeKeyDir) throws IOException {
         if (!dataDir.exists() || !dataDir.isDirectory()) {
             System.err.println("[COMPACTION ERROR] Data folder not found.");
-            return;
+            return null;
         }
-
-        File[] binFiles = dataDir.listFiles((dir, name) -> 
-            name.endsWith(StorageConstants.BIN_FILE_EXTENSION) && 
-            !name.startsWith(StorageConstants.TEMP_PREFIX) && 
-            !name.startsWith(StorageConstants.ARCHIVE_PREFIX) &&
-            !name.startsWith("hint_")
-        );
-        
-        if (binFiles == null || binFiles.length == 0) {
-            System.out.println("[COMPACTION] No log segments found to compact.");
-            return;
-        }
-
-        Arrays.sort(binFiles, Comparator.comparing(File::getName));
 
         System.out.println("==================================================");
-        System.out.println("BITCASK LIVE COMPACTION TRACE RUNNER");
+        System.out.println("BITCASK COMPACTION TRACE");
         System.out.println("==================================================");
+        System.out.println("[COMPACTION] Current active file: " + currentActiveFileId + ".bin");
 
-        Map<String, Record> latestRecords = new LinkedHashMap<>();
-        long totalInputSize = 0;
-
-        for (File file : binFiles) {
-            totalInputSize += file.length();
-            List<Record> parsedRecords = parseFileLogs(file);
-
-            for (Record r : parsedRecords) {
-                Record existing = latestRecords.get(r.getKey());
-                if (existing == null || r.getTimestamp() >= existing.getTimestamp()) {
-                    latestRecords.put(r.getKey(), r);
-                }
-            }
+        // STEP 1: Get the current active file
+        File currentActiveFile = new File(dataDir, currentActiveFileId + StorageConstants.BIN_FILE_EXTENSION);
+        
+        if (!currentActiveFile.exists()) {
+            System.err.println("[COMPACTION ERROR] Active file not found: " + currentActiveFile.getName());
+            return null;
         }
 
-        int nextSegmentId = getNextSegmentNumber(binFiles);
-        String finalDataName = String.format("active_data_%03d" + StorageConstants.BIN_FILE_EXTENSION, nextSegmentId);
-        String finalHintName = String.format("hint_active_data_%03d" + StorageConstants.BIN_FILE_EXTENSION, nextSegmentId);
+        long fileSize = currentActiveFile.length();
+        System.out.printf("[COMPACTION] Active file size: %d bytes%n", fileSize);
 
-        File tempDataOutput = new File(dataDir, StorageConstants.TEMP_PREFIX + finalDataName);
-        File tempHintOutput = new File(dataDir, StorageConstants.TEMP_PREFIX + finalHintName);
-        
-        File finalDataOutput = new File(dataDir, finalDataName);
-        File finalHintOutput = new File(dataDir, finalHintName);
+        // STEP 2: Read all records from the current active file
+        System.out.println("[COMPACTION] Reading records from active file...");
+        List<Record> allRecords = readRecordsFromActiveFile(currentActiveFile);
+        System.out.printf("[COMPACTION] Found %d records%n", allRecords.size());
 
-        List<Record> survivors = new ArrayList<>(latestRecords.values());
+        // STEP 3: Create hint file for the current active file (for fast recovery later)
+        String hintFileName = "hint_" + currentActiveFile.getName();
+        File hintFile = new File(dataDir, hintFileName);
         
-        writeCompactedAssets(survivors, tempDataOutput, tempHintOutput);
+        File tempHintFile = new File(dataDir, StorageConstants.TEMP_PREFIX + hintFileName);
+        System.out.println("[COMPACTION] Creating hint file: " + hintFileName);
+        
+        createHintFileFromRecords(allRecords, tempHintFile, currentActiveFile);
+        
+        // Atomically rename temp hint to final name
+        if (!tempHintFile.renameTo(hintFile)) {
+            System.err.println("[COMPACTION ERROR] Failed to finalize hint file.");
+            return null;
+        }
+        System.out.println("[COMPACTION] Hint file created successfully.");
 
-        boolean dataRenamed = tempDataOutput.renameTo(finalDataOutput);
-        boolean hintRenamed = tempHintOutput.renameTo(finalHintOutput);
+        // STEP 4: Create NEW active file for future writes
+        int nextSegmentId = getNextSegmentNumber();
+        String newActiveFileId = String.format("active_data_%03d", nextSegmentId);
+        String newActiveFileName = newActiveFileId + StorageConstants.BIN_FILE_EXTENSION;
+        File newActiveFile = new File(dataDir, newActiveFileName);
+
+        System.out.println("[COMPACTION] Creating new active file: " + newActiveFileName);
         
-        if (!dataRenamed || !hintRenamed) {
-            System.err.println("[COMPACTION ERROR] Failed to finalize compacted file pairs.");
-            return;
+        // Create the new empty active file
+        if (!newActiveFile.createNewFile()) {
+            System.err.println("[COMPACTION ERROR] Failed to create new active file.");
+            return null;
         }
 
-        for (File oldFile : binFiles) {
-            File archivedDataFile = new File(dataDir, StorageConstants.ARCHIVE_PREFIX + oldFile.getName());
-            oldFile.renameTo(archivedDataFile);
-            
-            String oldHintName = "hint_" + oldFile.getName();
-            File oldHintFile = new File(dataDir, oldHintName);
-            if (oldHintFile.exists()) {
-                File archivedHintFile = new File(dataDir, StorageConstants.ARCHIVE_PREFIX + oldHintName);
-                oldHintFile.renameTo(archivedHintFile);
-            }
-        }
+        System.out.println("[COMPACTION] New active file created: " + newActiveFileId);
 
-        // REFACTORED TO PREVENT READ DOWNTIME FOR ACTIVE WORKERS
-        // Instead of activeKeyDir.clear(), we stage the mutations first
-        Map<String, KeyDirEntry> stagingMap = new HashMap<>();
-        String activeFileId = finalDataName.replace(StorageConstants.BIN_FILE_EXTENSION, "");
+        // STEP 5: Update KeyDir - all records still point to current file (not new file)
+        // The new writes will automatically go to newActiveFileId
+        System.out.println("[COMPACTION] Updating index pointers...");
+        
         long trackingOffset = 0;
-
-        for (Record r : survivors) {
+        for (Record r : allRecords) {
             byte[] encodedBytes = RecordEncoder.encode(r);
-            long valueOffset = trackingOffset + StorageConstants.RECORD_HEADER_SIZE + r.getKey().getBytes(StorageConstants.DEFAULT_CHARSET).length;
+            byte[] keyBytes = r.getKey().getBytes(StorageConstants.DEFAULT_CHARSET);
+            long valueOffset = trackingOffset + StorageConstants.RECORD_HEADER_SIZE + keyBytes.length;
             
-            KeyDirEntry freshPointer = new KeyDirEntry(activeFileId, r.getValue().length, valueOffset, r.getTimestamp());
-            stagingMap.put(r.getKey(), freshPointer);
-
+            KeyDirEntry indexPointer = new KeyDirEntry(
+                currentActiveFileId,  // Old records still point to current file
+                r.getValue().length,
+                valueOffset,
+                r.getTimestamp()
+            );
+            activeKeyDir.put(r.getKey(), indexPointer);
+            
             trackingOffset += encodedBytes.length;
         }
 
-        // Atomically overlay the mutations into the production KeyDir map
-        for (Map.Entry<String, KeyDirEntry> entry : stagingMap.entrySet()) {
-            activeKeyDir.put(entry.getKey(), entry.getValue());
-        }
-
-        System.out.println("[COMPACTION SUCCESS] Merged log compression complete.");
-        System.out.printf("   Optimized Space Boundaries: %d Bytes -> %d Bytes%n", totalInputSize, finalDataOutput.length());
+        System.out.println("[COMPACTION SUCCESS] Compaction complete.");
+        System.out.printf("   Source file: %s.bin (%d bytes)%n", currentActiveFileId, fileSize);
+        System.out.printf("   Hint file: %s%n", hintFileName);
+        System.out.printf("   New active file: %s%n", newActiveFileId);
         System.out.println("==================================================\n");
+
+        // RETURN the new active file ID for engine to use
+        return newActiveFileId;
     }
 
-    private List<Record> parseFileLogs(File file) throws IOException {
+    /**
+     * Read all records from a data file
+     */
+    private List<Record> readRecordsFromActiveFile(File dataFile) throws IOException {
         List<Record> records = new ArrayList<>();
-        try (DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file)))) {
+        
+        try (DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(dataFile)))) {
             while (true) {
                 try {
+                    // Read header
                     byte[] headerBytes = new byte[StorageConstants.RECORD_HEADER_SIZE];
                     dis.readFully(headerBytes);
                     ByteBuffer headerBuf = ByteBuffer.wrap(headerBytes);
@@ -134,10 +141,12 @@ public class BitcaskCompactor {
                     int keySize = headerBuf.getInt();
                     int valueSize = headerBuf.getInt();
 
+                    // Read key
                     byte[] keyBytes = new byte[keySize];
                     dis.readFully(keyBytes);
                     String key = new String(keyBytes, StorageConstants.DEFAULT_CHARSET);
 
+                    // Read value
                     byte[] valueBytes = new byte[valueSize];
                     dis.readFully(valueBytes);
 
@@ -147,32 +156,58 @@ public class BitcaskCompactor {
                 }
             }
         }
+        
         return records;
     }
 
-    private void writeCompactedAssets(List<Record> records, File dataOutput, File hintOutput) throws IOException {
-        try (FileOutputStream dataFos = new FileOutputStream(dataOutput);
-             FileOutputStream hintFos = new FileOutputStream(hintOutput)) {
-             
+    /**
+     * Create hint file from records.
+     * Hint file contains: [Timestamp][KeySize][ValueSize][ValueOffset][Key]
+     * This allows quick recovery without scanning the data file.
+     */
+    private void createHintFileFromRecords(List<Record> records, File hintOutput, File dataFile) throws IOException {
+        try (FileOutputStream hintFos = new FileOutputStream(hintOutput);
+             RandomAccessFile dataRaf = new RandomAccessFile(dataFile, "r")) {
+
             long currentOffset = 0;
+            
             for (Record r : records) {
-                byte[] rawRecordBytes = RecordEncoder.encode(r);
-                dataFos.write(rawRecordBytes);
-                
+                // Calculate where the value starts in the data file
                 byte[] keyBytes = r.getKey().getBytes(StorageConstants.DEFAULT_CHARSET);
                 long valueOffset = currentOffset + StorageConstants.RECORD_HEADER_SIZE + keyBytes.length;
                 
-                HintEntry hint = new HintEntry(r.getTimestamp(), r.getValue().length, valueOffset, r.getKey());                
+                // Create and write hint entry
+                HintEntry hint = new HintEntry(
+                    r.getTimestamp(),
+                    r.getValue().length,
+                    valueOffset,
+                    r.getKey()
+                );
+                
                 byte[] rawHintBytes = HintEncoder.encode(hint);
                 hintFos.write(rawHintBytes);
                 
-                currentOffset += rawRecordBytes.length;
+                // Track offset for next record
+                byte[] encodedRecord = RecordEncoder.encode(r);
+                currentOffset += encodedRecord.length;
             }
         }
     }
 
-    private int getNextSegmentNumber(File[] files) {
+    /**
+     * Get the next segment number based on existing active_data_XXX files
+     */
+    private int getNextSegmentNumber() {
         int max = 0;
+        File[] files = dataDir.listFiles((dir, name) ->
+            name.startsWith("active_data_") &&
+            name.endsWith(StorageConstants.BIN_FILE_EXTENSION) &&
+            !name.startsWith(StorageConstants.ARCHIVE_PREFIX) &&
+            !name.startsWith(StorageConstants.TEMP_PREFIX)
+        );
+        
+        if (files == null) return 1;
+        
         for (File f : files) {
             String name = f.getName();
             int underscore = name.lastIndexOf('_');
