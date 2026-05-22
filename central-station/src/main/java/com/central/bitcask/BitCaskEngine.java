@@ -53,7 +53,7 @@ public class BitCaskEngine {
             } catch (IOException e) {
                 System.err.println("[COMPACTION] Failed: " + e.getMessage());
             }
-        }, 30, 30, TimeUnit.SECONDS);  // first run after 30s, then every 30s
+        }, 30, 100, TimeUnit.SECONDS);  // first run after 30s, then every 30s
 
         System.out.println("[COMPACTION] Scheduler started — runs every 30 seconds.");
     }

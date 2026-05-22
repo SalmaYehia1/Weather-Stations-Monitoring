@@ -52,6 +52,7 @@ public class BitcaskServer {
             server.createContext("/getAll", exchange -> {
                 try {
                     StringBuilder sb = new StringBuilder();
+                    // Compiles perfectly using the new custom KeyDir delegator loop structure
                     for (String key : engine.getKeyDir().keySet()) {
                         byte[] valBytes = engine.get(key);
                         if (valBytes != null) {

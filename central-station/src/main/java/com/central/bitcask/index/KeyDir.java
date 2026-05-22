@@ -1,45 +1,38 @@
 package com.central.bitcask.index;
 
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.Collection;
 
 public class KeyDir {
-    private final ConcurrentHashMap<String, KeyDirEntry> map = new ConcurrentHashMap<>();
+    // Keeps track of the latest memory pointer entries for each weather station
+    private final ConcurrentHashMap<String, KeyDirEntry> map;
+
+    public KeyDir() {
+        this.map = new ConcurrentHashMap<>();
+    }
 
     public void put(String key, KeyDirEntry entry) {
-        map.put(key, entry);
+        this.map.put(key, entry);
     }
 
     public KeyDirEntry get(String key) {
-        return map.get(key);
+        return this.map.get(key);
     }
 
-    public boolean containsKey(String key) {
-        return map.containsKey(key);
-    }
-
-    public Collection<String> allKeys() {
-        return map.keySet();
-    }
-    
     public void clear() {
-        map.clear();
+        this.map.clear();
     }
-    public void printDiagnosticSnapshot() {
-    System.out.println("\n===== 🗂️ BITCASK KEYDIR IN-MEMORY INDEX SNAPSHOT =====");
-    if (map.isEmpty()) {
-        System.out.println("(The memory index is completely empty)");
-    } else {
-        map.forEach((key, entry) -> {
-            System.out.printf("🔑 Key: %-15s -> [File: %s.bin | ValueSize: %d bytes | ValueOffset: %d | Timestamp: %d]%n",
-                key, entry.getFileId(), entry.getValueSize(), entry.getValueOffset(), entry.getTimestamp());
-        });
-    }
-    System.out.println("======================================================\n");
-}
 
-public java.util.Set<String> keySet() {
-    // Replace 'this.map' with whatever your class's internal map field name is
-    return this.map.keySet();
-}
+    /**
+     * Exposes a delegate key set view of active entries.
+     * This fixes the loop error in the API Server.
+     */
+    public Set<String> keySet() {
+        return this.map.keySet();
+    }
+
+    public void printDiagnosticSnapshot() {
+        System.out.println("[DIAGNOSTIC] Total active indexing keys in RAM: " + map.size());
+        map.forEach((k, v) -> System.out.printf("  -> Key: %s | File: %s.bin | Offset: %d%n", k, v.getFileId(), v.getValueOffset()));
+    }
 }

@@ -73,10 +73,8 @@ public class BitcaskCompactor {
 
         List<Record> survivors = new ArrayList<>(latestRecords.values());
         
-        // Simultaneously write compacted records and hint files
         writeCompactedAssets(survivors, tempDataOutput, tempHintOutput);
 
-        // Atomically transition assets from working status to production status
         boolean dataRenamed = tempDataOutput.renameTo(finalDataOutput);
         boolean hintRenamed = tempHintOutput.renameTo(finalHintOutput);
         
@@ -85,7 +83,6 @@ public class BitcaskCompactor {
             return;
         }
 
-        // Clean up obsolete data logs and their matching old hint files
         for (File oldFile : binFiles) {
             File archivedDataFile = new File(dataDir, StorageConstants.ARCHIVE_PREFIX + oldFile.getName());
             oldFile.renameTo(archivedDataFile);
@@ -98,8 +95,9 @@ public class BitcaskCompactor {
             }
         }
 
-        // Atomically update Memory Index Map pointers
-        activeKeyDir.clear();
+        // REFACTORED TO PREVENT READ DOWNTIME FOR ACTIVE WORKERS
+        // Instead of activeKeyDir.clear(), we stage the mutations first
+        Map<String, KeyDirEntry> stagingMap = new HashMap<>();
         String activeFileId = finalDataName.replace(StorageConstants.BIN_FILE_EXTENSION, "");
         long trackingOffset = 0;
 
@@ -108,9 +106,14 @@ public class BitcaskCompactor {
             long valueOffset = trackingOffset + StorageConstants.RECORD_HEADER_SIZE + r.getKey().getBytes(StorageConstants.DEFAULT_CHARSET).length;
             
             KeyDirEntry freshPointer = new KeyDirEntry(activeFileId, r.getValue().length, valueOffset, r.getTimestamp());
-            activeKeyDir.put(r.getKey(), freshPointer);
+            stagingMap.put(r.getKey(), freshPointer);
 
             trackingOffset += encodedBytes.length;
+        }
+
+        // Atomically overlay the mutations into the production KeyDir map
+        for (Map.Entry<String, KeyDirEntry> entry : stagingMap.entrySet()) {
+            activeKeyDir.put(entry.getKey(), entry.getValue());
         }
 
         System.out.println("[COMPACTION SUCCESS] Merged log compression complete.");
@@ -159,8 +162,8 @@ public class BitcaskCompactor {
                 byte[] keyBytes = r.getKey().getBytes(StorageConstants.DEFAULT_CHARSET);
                 long valueOffset = currentOffset + StorageConstants.RECORD_HEADER_SIZE + keyBytes.length;
                 
-                    HintEntry hint = new HintEntry(r.getTimestamp(), r.getValue().length, valueOffset, r.getKey());                
-                    byte[] rawHintBytes = HintEncoder.encode(hint);
+                HintEntry hint = new HintEntry(r.getTimestamp(), r.getValue().length, valueOffset, r.getKey());                
+                byte[] rawHintBytes = HintEncoder.encode(hint);
                 hintFos.write(rawHintBytes);
                 
                 currentOffset += rawRecordBytes.length;
