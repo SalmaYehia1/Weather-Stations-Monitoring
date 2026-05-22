@@ -1,4 +1,4 @@
-package com.weather;
+package com.central.server.indexer;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
