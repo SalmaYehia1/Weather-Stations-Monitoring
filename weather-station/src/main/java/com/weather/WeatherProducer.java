@@ -13,12 +13,6 @@ public class WeatherProducer {
         long stationId = Long.parseLong(args[0]);
 
         WeatherStation station = new WeatherStation(stationId);
-
-        Gson gson = new Gson();
-
-        Properties properties = new Properties();
-
-        WeatherStation station = new WeatherStation(stationId);
         Gson gson = new Gson();
 
         Properties properties = new Properties();

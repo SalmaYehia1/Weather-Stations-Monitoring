@@ -40,11 +40,10 @@ public class WeatherStation {
         String battery = generateBatteryStatus();
 
         Weather weather = new Weather(
-                random.nextInt(101),
-                60 + random.nextInt(41),
-                random.nextInt(51)
+                60 + random.nextInt(41),  // humidity:     60–100
+                random.nextInt(101),      // temperature:  0–100
+                random.nextInt(51)        // wind_speed:   0–50
         );
-
         long currentSerialNo = serialNo++;
         saveSerialNo(); // persist after every increment
 
