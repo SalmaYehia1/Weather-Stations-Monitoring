@@ -153,7 +153,7 @@ public class OpenMeteoAdapter {
 
         props.setProperty(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-                "localhost:9092"
+                "kafka:9092"
         );
 
         props.setProperty(
@@ -182,7 +182,7 @@ public class OpenMeteoAdapter {
         for (int i = 0; i < LOCATIONS.length; i++) {
 
             File f = new File(
-                    "adapter_station_" +
+                    "/data/adapter/adapter_station_" +
                             LOCATIONS[i].stationId +
                             "_sno.txt"
             );
@@ -206,7 +206,7 @@ public class OpenMeteoAdapter {
 
     private static void saveCounter(int index, long value) {
         try (PrintWriter pw = new PrintWriter(
-                new FileWriter("adapter_station_" + LOCATIONS[index].stationId + "_sno.txt"))) {
+                new FileWriter("/data/adapter/adapter_station_" + LOCATIONS[index].stationId + "_sno.txt"))) {
             pw.println(value);
         } catch (Exception e) {
             System.err.println("Failed to save counter: " + e.getMessage());

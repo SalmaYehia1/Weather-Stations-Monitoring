@@ -57,7 +57,7 @@ public class ParquetArchiver {
 
         // connect to Elasticsearch once at startup
         this.restClient = RestClient.builder(
-                new HttpHost("localhost", 9200)
+                new HttpHost("elasticsearch", 9200)
         ).build();
 
         RestClientTransport transport = new RestClientTransport(

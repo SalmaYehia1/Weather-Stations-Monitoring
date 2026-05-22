@@ -12,7 +12,7 @@ public class WeatherStation {
 
     public WeatherStation(long stationId) {
         this.stationId = stationId;
-        this.serialFile = "station_" + stationId + "_sno.txt";
+        this.serialFile = "/data/station/station_" + stationId + "_sno.txt";
         this.serialNo = loadSerialNo(); // load from file on startup
     }
 
