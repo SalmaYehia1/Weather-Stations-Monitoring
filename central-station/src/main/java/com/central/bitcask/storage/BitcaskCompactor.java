@@ -5,7 +5,6 @@ import com.central.bitcask.model.Record;
 import com.central.bitcask.model.HintEntry;
 import com.central.bitcask.index.KeyDir;
 import com.central.bitcask.index.KeyDirEntry;
-import com.central.bitcask.serde.RecordDecoder;
 import com.central.bitcask.serde.RecordEncoder;
 import com.central.bitcask.serde.HintEncoder;
 
