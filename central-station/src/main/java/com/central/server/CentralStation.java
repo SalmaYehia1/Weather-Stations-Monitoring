@@ -25,6 +25,7 @@ public class CentralStation {
         BitCaskEngine engine = null;
         ParquetArchiver archiver = null;
         KafkaConsumer<String, String> consumer = null;
+        BitcaskServer apiServer = null; // Added to track our server instance cleanly
 
         try {
             // 1. Initialize custom Bitcask engine
@@ -34,6 +35,14 @@ public class CentralStation {
             // 🔍 DIAGNOSTIC: Print KeyDir on startup recovery
             System.out.println("[DIAGNOSTIC] Checking recovered RAM index indices...");
             engine.printIndexState();
+
+            // ⭐ INTEGRATION POINT: Launch the HTTP REST Server on Port 8080 for bash scripts
+            try {
+                apiServer = new BitcaskServer(8080, engine);
+                apiServer.start();
+            } catch (IOException e) {
+                System.err.println("[SERVER ERROR] Failed to bind HTTP Web Endpoints: " + e.getMessage());
+            }
 
             // 2. Initialize columnar analytics Parquet archiver 
             archiver = new ParquetArchiver();
@@ -57,6 +66,7 @@ public class CentralStation {
             final BitCaskEngine finalEngine = engine;
             final ParquetArchiver finalArchiver = archiver;
             final KafkaConsumer<String, String> finalConsumer = consumer;
+            final BitcaskServer finalApiServer = apiServer; // Pass to shutdown hook
 
             // 4. Graceful shutdown hook execution sequence
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -66,6 +76,11 @@ public class CentralStation {
                     
                     Thread.sleep(1500);
                     
+                    // Safely close the HTTP endpoints first
+                    if (finalApiServer != null) {
+                        finalApiServer.stop();
+                        System.out.println("[SHUTDOWN] Embedded API Server stopped cleanly.");
+                    }
                     if (finalArchiver != null) {
                         finalArchiver.flush();
                         finalArchiver.close();

@@ -1,4 +1,47 @@
-# === KAFKA (KRaft Mode - No Zookeeper) ===
+
+# ════════════════════════════════════════════════════════════
+# 1. ZOOKEEPER
+# ════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+    spec:
+      containers:
+        - name: zookeeper
+          image: confluentinc/cp-zookeeper:7.6.0
+          env:
+            - name: ZOOKEEPER_CLIENT_PORT
+              value: "2181"
+            - name: ZOOKEEPER_TICK_TIME
+              value: "2000"
+          ports:
+            - containerPort: 2181
+              name: client
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper
+spec:
+  selector:
+    app: zookeeper
+  ports:
+    - port: 2181
+      targetPort: 2181
+---
+# ════════════════════════════════════════════════════════════
+# 2. KAFKA  (uses Zookeeper)
+# ════════════════════════════════════════════════════════════
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,22 +58,14 @@ spec:
     spec:
       containers:
         - name: kafka
-          image: apache/kafka:4.1.1
+          image: confluentinc/cp-kafka:7.6.0
           env:
-            - name: KAFKA_NODE_ID
+            - name: KAFKA_BROKER_ID
               value: "1"
-            - name: KAFKA_PROCESS_ROLES
-              value: "broker,controller"
-            - name: KAFKA_LISTENERS
-              value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+            - name: KAFKA_ZOOKEEPER_CONNECT
+              value: "zookeeper:2181"
             - name: KAFKA_ADVERTISED_LISTENERS
               value: "PLAINTEXT://kafka:9092"
-            - name: KAFKA_CONTROLLER_LISTENER_NAMES
-              value: "CONTROLLER"
-            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-              value: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
-            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
-              value: "1@kafka:9093"
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
               value: "1"
             - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
@@ -38,8 +73,6 @@ spec:
           ports:
             - containerPort: 9092
               name: broker
-            - containerPort: 9093
-              name: controller
 ---
 apiVersion: v1
 kind: Service
@@ -49,222 +82,26 @@ spec:
   selector:
     app: kafka
   ports:
-    - name: broker
-      port: 9092
+    - port: 9092
       targetPort: 9092
-    - name: controller
-      port: 9093
-      targetPort: 9093
 ---
-# === ELASTICSEARCH ===
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: elasticsearch
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: elasticsearch
-  template:
-    metadata:
-      labels:
-        app: elasticsearch
-    spec:
-      containers:
-        - name: elasticsearch
-          image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
-          env:
-            - name: discovery.type
-              value: "single-node"
-            - name: xpack.security.enabled
-              value: "false"
-            - name: ES_JAVA_OPTS
-              value: "-Xms512m -Xmx512m"
-          ports:
-            - containerPort: 9200
-              name: http
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: elasticsearch
-spec:
-  selector:
-    app: elasticsearch
-  ports:
-    - port: 9200
-      targetPort: 9200
----
-# === KIBANA ===
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: kibana
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: kibana
-  template:
-    metadata:
-      labels:
-        app: kibana
-    spec:
-      containers:
-        - name: kibana
-          image: docker.elastic.co/kibana/kibana:8.13.0
-          env:
-            - name: ELASTICSEARCH_HOSTS
-              value: "http://elasticsearch:9200"
-          ports:
-            - containerPort: 5601
-              name: ui
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: kibana
-spec:
-  selector:
-    app: kibana
-  ports:
-    - port: 5601
-      targetPort: 5601
----
-# === SHARED STORAGE (parquet + BitCask) ===
+# ════════════════════════════════════════════════════════════
+# 3. SHARED STORAGE  (parquet files + BitCask Riak LSM)
+# ════════════════════════════════════════════════════════════
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: shared-pvc
 spec:
   accessModes:
-    - ReadWriteMany
-  resources:
-    rules:
-    requests:
-      storage: 10Gi
----
-# === ADAPTER STORAGE ===
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: adapter-pvc
-spec:
-  accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 100Mi
+      storage: 10Gi
 ---
-# === STATION STORAGE (1 to 10) ===
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-1-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-2-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-3-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-4-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-5-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-6-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-7-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-8-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-9-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: station-10-pvc
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources: { requests: { storage: 100Mi } }
----
-# === OPEN-METEO ADAPTER ===
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: openmeteo-adapter
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: openmeteo-adapter
-  template:
-    metadata:
-      labels:
-        app: openmeteo-adapter
-    spec:
-      containers:
-        - name: adapter
-          image: adapter:latest
-          imagePullPolicy: Never
-          volumeMounts:
-            - name: adapter-storage
-              mountPath: /data/adapter
-      volumes:
-        - name: adapter-storage
-          persistentVolumeClaim:
-            claimName: adapter-pvc
----
+# ════════════════════════════════════════════════════════════
+# 4. CENTRAL STATION
+# ════════════════════════════════════════════════════════════
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -302,8 +139,33 @@ spec:
     app: central-station
   ports:
     - port: 8080
+      targetPort: 8080
 ---
-# === WEATHER STATIONS (1 to 10) ===
+# ════════════════════════════════════════════════════════════
+# 5. OPEN-METEO ADAPTER
+# ════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openmeteo-adapter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openmeteo-adapter
+  template:
+    metadata:
+      labels:
+        app: openmeteo-adapter
+    spec:
+      containers:
+        - name: adapter
+          image: adapter:latest
+          imagePullPolicy: Never
+---
+# ════════════════════════════════════════════════════════════
+# 6. WEATHER STATIONS 1–10
+# ════════════════════════════════════════════════════════════
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -323,13 +185,6 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["1"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-1-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -350,13 +205,6 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["2"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-2-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -377,13 +225,6 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["3"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-3-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -404,13 +245,6 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["4"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-4-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -431,13 +265,6 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["5"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-5-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -458,13 +285,6 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["6"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-6-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -485,13 +305,6 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["7"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-7-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -512,13 +325,6 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["8"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-8-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -539,13 +345,6 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["9"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-9-pvc
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -566,10 +365,3 @@ spec:
           image: station:latest
           imagePullPolicy: Never
           args: ["10"]
-          volumeMounts:
-            - name: station-storage
-              mountPath: /data/station
-      volumes:
-        - name: station-storage
-          persistentVolumeClaim:
-            claimName: station-10-pvc
