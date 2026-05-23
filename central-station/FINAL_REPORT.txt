@@ -1,0 +1,33 @@
+==========================================================
+ALEXANDRIA UNIVERSITY - CSE-4E3 PROJECT
+PART G: CENTRAL STATION JFR PROFILING REPORT
+Timestamp: 23 ماي, 2026 EEST 02:53:32 ص
+==========================================================
+
+[1] TOP 10 CLASSES WITH HIGHEST TOTAL MEMORY:
+
+                              Allocation by Class
+
+Object Type                                                 Allocation Pressure
+----------------------------------------------------------- -------------------
+jdk.internal.org.objectweb.asm.SymbolTable$Entry[]                       78.20%
+java.util.concurrent.ConcurrentHashMap$Node[]                            17.28%
+byte[]                                                                    1.84%
+com.central.bitcask.model.Record                                          1.43%
+java.util.LinkedHashMap$Entry                                             0.39%
+java.util.Optional                                                        0.36%
+java.util.ArrayList$Itr                                                   0.09%
+java.util.Collections$UnmodifiableCollection$1                            0.07%
+java.lang.String                                                          0.07%
+java.nio.HeapCharBuffer                                                   0.07%
+
+[2] GC PAUSES COUNT:
+0
+
+[3] GC MAXIMUM PAUSE DURATION:
+
+[4] LIST OF I/O OPERATIONS (FILE READS/WRITES):
+Count | Path
+
+[5] LIST OF I/O OPERATIONS (SOCKETS/KAFKA):
+Count | Host

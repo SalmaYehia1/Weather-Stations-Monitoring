@@ -1,0 +1,34 @@
+]633;E;echo "==========================================================";8ac27ca2-d143-4450-889f-472740d837e6]633;C==========================================================
+CSE-4E3 PROJECT: FINAL CENTRAL STATION JFR REPORT
+Timestamp: 23 ماي, 2026 EEST 02:10:16 ص
+==========================================================
+
+[1] TOP 10 CLASSES BY MEMORY ALLOCATION:
+
+                              Allocation by Class
+
+Object Type                                                 Allocation Pressure
+----------------------------------------------------------- -------------------
+byte[]                                                                   94.67%
+java.util.ArrayList                                                       2.75%
+java.lang.Object[]                                                        2.59%
+
+[2] GC PAUSE COUNT:
+1
+
+[3] GC MAXIMUM PAUSE DURATION:
+
+[4] FILE I/O OPERATIONS:
+
+                                                   File Reads by Path
+
+Path                                                                                                   Reads Total Read
+------------------------------------------------------------------------------------------------------ ----- ----------
+
+No events found for 'File Writes by Path'.
+
+[5] SOCKET I/O OPERATIONS:
+
+No events found for 'Socket Reads by Host'.
+
+No events found for 'Socket Writes by Host'.

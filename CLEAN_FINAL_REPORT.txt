@@ -1,0 +1,18 @@
+==========================================================
+ALEXANDRIA UNIVERSITY - CSE-4E3 PROJECT
+PART G: CENTRAL STATION JFR PROFILING REPORT
+Timestamp: 23 ماي, 2026 EEST 02:40:31 ص
+==========================================================
+
+[1] TOP 10 CLASSES WITH HIGHEST TOTAL MEMORY:
+
+[2] GC PAUSES COUNT:
+0
+
+[3] GC MAXIMUM PAUSE DURATION:
+
+[4] LIST OF I/O OPERATIONS (FILE READS/WRITES):
+Count | Path
+
+[5] LIST OF I/O OPERATIONS (SOCKETS/KAFKA):
+Count | Host

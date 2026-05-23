@@ -1,0 +1,6 @@
+--2026-05-23 02:24:13--  https://github.com/openjdk/jmc/releases/download/8.3.0/org.openjdk.jmc-8.3.0-linux.gtk.x86_64.tar.gz
+Resolving github.com (github.com)... 140.82.121.4
+Connecting to github.com (github.com)|140.82.121.4|:443... connected.
+HTTP request sent, awaiting response... 404 Not Found
+2026-05-23 02:25:24 ERROR 404: Not Found.
+
