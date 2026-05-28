@@ -1,5 +1,4 @@
 
-```markdown
 # 🌦️ Weather Stations Monitoring System 
 
 **Java | Kafka | Kubernetes | Elasticsearch**
