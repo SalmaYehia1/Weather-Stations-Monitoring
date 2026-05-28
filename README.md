@@ -1,6 +1,3 @@
-Here is the complete, formatted `README.md` file for your project. You can copy this entire block and paste it directly into your repository.
-
----
 
 ```markdown
 # 🌦️ Weather Stations Monitoring System 
