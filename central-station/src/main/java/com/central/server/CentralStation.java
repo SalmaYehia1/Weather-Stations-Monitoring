@@ -85,7 +85,7 @@ public class CentralStation {
             }));
 
             // Regex parsing pattern matching incoming metrics JSON layouts
-            Pattern idPattern = Pattern.compile("\"station_id\":\\s*(\\d+)");
+            Pattern idPattern = Pattern.compile("\"station_id\":\\s*(-?\\d+)");
 
             // 5. Main Consumer Loop
             while (running.get()) {

@@ -40,7 +40,7 @@ public class OpenMeteoAdapter {
 //    relative_humidity_2m → humidity
 //    wind_speed_10m → wind_speed
 
-    private static final String TOPIC        = "weather-topic";
+    private static final String TOPIC        = "weather-data";
     private static final long   POLL_INTERVAL = 1000L; // 1 sec
     private static final long[] serialCounters = loadSerialCounters();
 
