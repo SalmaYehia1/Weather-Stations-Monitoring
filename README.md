@@ -1,7 +1,6 @@
 
-# 🌦️ Weather Stations Monitoring System 
+#  Weather Stations Monitoring System 
 
-**Java | Kafka | Kubernetes | Elasticsearch**
 
 ![Architecture Overview](imgs/architecture.png)
 
@@ -9,7 +8,7 @@ A distributed streaming pipeline that ingests and archives IoT data from simulat
 
 ---
 
-## 📐 Architecture Overview 
+##  Architecture Overview 
 
 The system is divided into three core stages: 
 
@@ -36,7 +35,7 @@ The system is divided into three core stages:
 
 ---
 
-## 🔧 Technical Implementation
+##  Technical Implementation
 
 ### 1. Custom BitCask Engine
 
@@ -66,7 +65,7 @@ Polls the Open-Meteo API every second for four real-world locations — Cairo, A
 
 ---
 
-## 🏗️ Enterprise Integration Patterns (EIP)
+##  Enterprise Integration Patterns (EIP)
 
 | Pattern | Implementation |
 | --- | --- |
@@ -79,7 +78,7 @@ Polls the Open-Meteo API every second for four real-world locations — Cairo, A
 
 ---
 
-## ☸️ Kubernetes Deployment
+##  Kubernetes Deployment
 
 ### Prerequisites
 
